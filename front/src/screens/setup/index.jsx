@@ -11,6 +11,7 @@ import Col from 'react-bootstrap/Col';
 import Web3 from "web3";
 
 import hiveABI from '../../abi/hive.json';
+import erc20ABI from '../../abi/erc20.json';
 
 let web3;
 
@@ -22,7 +23,8 @@ export default function Setup() {
     let [step, setStep] = useState('beneficiaries');
     
     let [deploying, setDeploying] = useState(false);
-    let [connected, setConnected] = useState(false);
+    let [_, setConnected] = useState(false);
+    let [account, setAccount] = useState(false);
 
     const steps = ["beneficiaries", "interval", "tokens", "summary"];
 
@@ -57,6 +59,8 @@ export default function Setup() {
     const onConnect = async () => {
         web3 = initWeb3();
         setConnected(true);
+        let acc = (await web3.eth.getAccounts())[0];
+        setAccount(acc);
     }
 
     const deploy = async () => {
@@ -70,7 +74,6 @@ export default function Setup() {
         }
 
         let intervalSecs = interval * 24 * 3600;
-        let account = (await web3.eth.getAccounts())[0];
 
         try {
             await hive.methods.deploy(bens, account, intervalSecs).send({
@@ -83,8 +86,36 @@ export default function Setup() {
             return;
         }
 
-        
+        // setApprovingTokens
+
+        let beeAddr = await getBeeContract();
+
+        const usdcAddr = "0xe11A86849d99F524cAC3E7A0Ec1241828e332C62";
+        let erc20 = new web3.eth.Contract(erc20ABI, usdcAddr)
+        await erc20.methods.approve(beeAddr, "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").send({
+            from: account,
+            gas: 300000,
+        })
+
+        // setAllGood
     };
+
+    const getBeeContract = async () => {
+        const testnetAddr = "0xaB277639104116d672ED6E10aC03d9ca2678A8E6";
+        let hive = new web3.eth.Contract(hiveABI, testnetAddr);
+
+        let i = 0;
+        let addr;
+        try {
+            while(true) {
+                let a = await hive.methods.ownerBees(account, i).call();
+                addr = a;
+                i++;
+            }
+        } catch(err) {
+            return addr;
+        }
+    }
 
     return (
         <>
